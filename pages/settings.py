@@ -9,7 +9,7 @@ def render(dm):
     st.markdown('<p class="page-subtitle">// Calibrate the system to your ambitions.</p>', unsafe_allow_html=True)
 
     # ── Storage status banner ─────────────────────────────────────────────────
-    mode = dm.storage_mode()
+    mode = dm.storage_mode
     is_supabase = "Supabase" in mode
     banner_color = "#1a2e1a" if is_supabase else "#2e1e0a"
     dot_color   = "#3dffc0"  if is_supabase else "#ff8c42"
