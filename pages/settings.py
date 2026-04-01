@@ -156,7 +156,7 @@ def render(dm):
             try:
                 from supabase import create_client
                 test = create_client(input_url.strip(), input_key.strip())
-                test.table("kv_store").select("id").limit(1).execute()
+                test.table("kv_store").select("key").limit(1).execute()
                 save_supabase_creds(input_url, input_key)
                 st.success("✅ Connected! Restarting app...")
                 st.rerun()
