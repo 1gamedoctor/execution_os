@@ -145,65 +145,127 @@ def render(dm):
     # ── Tab 5: Supabase ───────────────────────────────────────────────────────
     with tab5:
         st.markdown("### ☁️ Supabase — Persistent Cloud Storage")
-        st.markdown("Connect Supabase so your data survives Streamlit Cloud sleep/restarts.")
 
+        # ── Current status ────────────────────────────────────────────────────
         if is_supabase:
-            st.success("✅ Supabase is connected and active. All data is being saved to the cloud.")
-            st.markdown("Your connection is configured via Streamlit Cloud's Secrets panel. To update credentials, follow Step 4 below.")
+            st.success("✅ Supabase is connected and active. All your data is saved to the cloud.")
         else:
-            st.warning("⚠️ Not connected. Without Supabase, data resets when Streamlit sleeps the app.")
+            st.warning("⚠️ Not connected. Data will reset when Streamlit sleeps the app.")
 
         st.markdown("---")
 
-        st.markdown("""
-#### Step 1 — Create a free Supabase project
-- Go to [supabase.com](https://supabase.com) → sign up → **New project**
-- Give it any name (e.g. `execution-os`), set a database password
-- Pick the region closest to you — **eu-west-1** (Ireland) is closest to Kenya
-- Wait about 2 minutes for it to provision
+        # ── Step 1: Generate the secrets block ───────────────────────────────
+        st.markdown("#### Step 1 — Enter your Supabase credentials")
+        st.markdown(
+            "Paste your values below. This generates the exact block you need to copy "
+            "into Streamlit Cloud. Your credentials are **never saved** here — this is "
+            "just a formatting helper."
+        )
 
-#### Step 2 — Create the database table
-- In your project: click **SQL Editor** in the left sidebar → **New query**
-- Paste the entire contents of `supabase_schema.sql` (included in your zip)
-- Click **Run** — you should see *"Success. No rows returned"*
+        input_url = st.text_input(
+            "Supabase Project URL",
+            placeholder="https://abcdefghijkl.supabase.co",
+            help="Found in: Supabase Dashboard → Project Settings → API → Project URL"
+        )
+        input_key = st.text_input(
+            "Supabase anon / public key",
+            placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+            type="password",
+            help="Found in: Supabase Dashboard → Project Settings → API → anon public"
+        )
 
-#### Step 3 — Get your credentials
-- Click **Project Settings** (gear icon, bottom-left) → **API**
-- Copy two values:
-  - **Project URL** — looks like `https://abcdefgh.supabase.co`
-  - **anon / public key** — long string starting with `eyJ...`
+        if input_url and input_key:
+            secrets_block = f'[supabase]\nurl = "{input_url}"\nkey = "{input_key}"'
+            st.markdown("#### ✅ Your secrets block — copy this:")
+            st.code(secrets_block, language="toml")
+            st.info(
+                "👆 Copy the block above, then go to: **share.streamlit.io** → your app → "
+                "**⋮ menu** → **Settings** → **Secrets** → paste it in → **Save**. "
+                "The app will restart and connect automatically."
+            )
 
-#### Step 4 — Add secrets to Streamlit Cloud
-- Go to [share.streamlit.io](https://share.streamlit.io)
-- Find your app → click **⋮ (three dots)** → **Settings** → **Secrets**
-- Paste this block, replacing with your real values:
-""")
-
-        st.code("""[supabase]
-url = "https://your-project-id.supabase.co"
-key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." """, language="toml")
-
-        st.markdown("""
-- Click **Save** — the app restarts automatically
-- Come back to this tab — the banner at the top of Settings should turn **green**
-
-#### Step 5 — Verify migration (if you had existing data)
-- On first load after connecting, a green toast notification will appear:
-  *"☁️ Migrated local data to Supabase: config, income, days, log"*
-- That means all your previous entries are now safely in the cloud
-""")
+            # ── Test the connection right now ─────────────────────────────────
+            st.markdown("#### 🔌 Test connection before deploying")
+            if st.button("Test these credentials now"):
+                try:
+                    from supabase import create_client
+                    test_client = create_client(input_url, input_key)
+                    # Try a real read against the kv_store table
+                    test_client.table("kv_store").select("id").limit(1).execute()
+                    st.success(
+                        "✅ Connection successful! These credentials work and the "
+                        "kv_store table exists. Go ahead and paste the block into "
+                        "Streamlit Cloud Secrets."
+                    )
+                except Exception as e:
+                    err = str(e)
+                    if "kv_store" in err or "relation" in err.lower():
+                        st.warning(
+                            "⚠️ Connected to Supabase but the **kv_store table is missing**. "
+                            "Go to Supabase → SQL Editor → paste and run `supabase_schema.sql`."
+                        )
+                    elif "Invalid API key" in err or "401" in err:
+                        st.error("❌ Invalid API key. Double-check you copied the **anon public** key, not the service_role key.")
+                    elif "invalid input syntax" in err.lower() or "hostname" in err.lower():
+                        st.error("❌ Invalid Project URL. Make sure it starts with https:// and has no trailing slash.")
+                    else:
+                        st.error(f"❌ Connection failed: {err}")
+        else:
+            st.markdown(
+                "<div style='font-family:JetBrains Mono,monospace;font-size:0.75rem;"
+                "color:#4a4a7a;padding:1rem;background:#12121f;border-radius:8px;"
+                "border:1px dashed #2d2d5e'>Fill in both fields above to generate "
+                "your secrets block and test your connection.</div>",
+                unsafe_allow_html=True
+            )
 
         st.markdown("---")
-        st.markdown("#### Supabase Free Tier Limits")
-        st.markdown("""
-| Resource | Free limit | Your usage |
-|----------|-----------|------------|
-| Database size | 500 MB | < 1 MB (JSON blobs) |
-| API requests | 50,000 / month | < 500 / month |
-| Projects | 2 | 1 |
+
+        # ── Where to find credentials ─────────────────────────────────────────
+        with st.expander("📍 Where to find these values in Supabase"):
+            st.markdown("""
+1. Go to [supabase.com](https://supabase.com) → open your project
+2. Click the **gear icon** (Project Settings) in the bottom-left sidebar
+3. Click **API** in the settings menu
+4. You'll see:
+   - **Project URL** — copy the full URL including `https://`
+   - **Project API keys → anon public** — copy this key (NOT the `service_role` key)
+
+Don't have a project yet? Create one free at [supabase.com](https://supabase.com) — takes 2 minutes.
+""")
+
+        with st.expander("🗄️ Setting up the database table (one-time)"):
+            st.markdown("""
+Before the app can save data to Supabase you need to create one table:
+
+1. In your Supabase project → click **SQL Editor** → **New query**
+2. Paste this SQL and click **Run**:
+""")
+            st.code("""
+create table if not exists kv_store (
+  id          text primary key,
+  value       jsonb        not null,
+  updated_at  timestamptz  not null default now()
+);
+
+alter table kv_store enable row level security;
+
+create policy "Allow full access"
+  on kv_store for all
+  using (true) with check (true);
+""", language="sql")
+            st.markdown("You should see *'Success. No rows returned'*. Done — the table is ready.")
+
+        with st.expander("📊 Supabase free tier — will I ever hit the limits?"):
+            st.markdown("""
+| Resource | Free limit | This app uses |
+|----------|-----------|---------------|
+| Database size | 500 MB | < 1 MB |
+| API calls | 50,000 / month | < 500 / month |
+| Projects | 2 free | 1 |
 | Bandwidth | 5 GB | Negligible |
 
-You will **never** hit the free tier limits with this app.
+You will never hit any limit with this app.
 """)
 
     # ── Danger zone ───────────────────────────────────────────────────────────
